@@ -43,7 +43,6 @@ app.get(`/inep`, async (req, res) => {
     await get_data(req,res).then( info => {
         res.json({ info });//console.log(result);        
     });
-
 });
 
 async function get_data(req, res) {
