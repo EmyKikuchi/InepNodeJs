@@ -107,7 +107,7 @@ async function get_data(req, res) {
     await page.waitForNavigation();
     console.log('New Page URL:', page.url());
 
-    //await delay(2610);
+    await delay(500);
 
     /* RASPAR DADOS */
     const data = await page.evaluate(() => Array.from(document.querySelectorAll('.PTChildPivotTable table tr td')).map(el => el.innerText)
