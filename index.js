@@ -187,5 +187,4 @@ async function get_data(req, res) {
     }        
 
     return info;
-
 }
