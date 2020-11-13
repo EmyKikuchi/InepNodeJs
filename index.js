@@ -92,7 +92,7 @@ async function get_data(req, res, PORT) {
     await page.evaluate(() => { document.querySelectorAll('.promptDropDownButton')[1].click(); }
     );
 
-    await delay(1000);
+    await delay(600);
     console.log(`CLICK ${CITY}`);
     await page.$eval(`div.promptMenuOption[title="${CITY}"]`, _el => _el.click());
 
