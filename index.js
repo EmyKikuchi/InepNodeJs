@@ -18,7 +18,8 @@ const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const timeout = require('connect-timeout')
+const timeout = require('connect-timeout');
+const { Console } = require('console');
 
 // crio um servidor express
 const app = express();
@@ -40,36 +41,36 @@ app.get('/', (req, res) => {
 
 app.get(`/inep`, async (req, res) => {
     
-    await get_data(req,res).then( info => {
-        res.json({ info });//console.log(result);        
-    });
+    await get_data(req,res, PORT)
+        .then( info => {
+            res.json({ info });//console.log(result);        
+        }).catch(function(e) {
+            // rejection
+            console.log(e);
+        });
 });
 
-async function get_data(req, res) {
+async function get_data(req, res, PORT) {
     let UF = req.query.UF;//'MINAS GERAIS';
     let CITY = req.query.CITY;//'BELO HORIZONTE';   
+    let PERIODO = req.query.PERIODO;//'BELO HORIZONTE';   
 
     const URL = 'https://inepdata.inep.gov.br/analytics/saw.dll?Dashboard&NQUser=inepdata&NQPassword=Inep2014&PortalPath=%2Fshared%2FPainel%20Educacional%2F_portal%2FPainel%20Municipal';
     const SELETOR_DROP_1 = 'img[src="/analyticsRes/res/s_InepdataPainelMunicipal/master/selectdropdown_ena.png"]';
 
-    // netlify
-    //const executablePath = await chromium.executablePath
-    
-    // const browser = await puppeteer.launch({
-        //     args: chromium.args,
-        //     executablePath: executablePath,
-        //     headless: chromium.headless,
-        // });
-    //const browser = await puppeteer.launch({headless: false});
+    if( PORT === 3000){
+        // LOCAL
+        var browser = await puppeteer.launch();
+    }else{
+        // HEROKU
+        var browser = await puppeteer.launch({
+            args: [
+                '--no-sandbox'                    
+            ],
+        });
+        //'--disable-setuid-sandbox',
+    }
 
-    // HEROKU
-    const browser = await puppeteer.launch({
-        args: [
-            '--no-sandbox'                    
-        ],
-    });  
-    //'--disable-setuid-sandbox',          
-    
     const page = await browser.newPage();
     await page.goto(URL);
     await page.waitForNavigation();
@@ -98,7 +99,6 @@ async function get_data(req, res) {
     await delay(500);
     
     // # RESULTADOS (Exibir Resultados)
-    console.log('CLICK Exibir Resultados');
     const [link] = await page.$x("//a[contains(., 'Exibir Resultados')]");
     if (link) {
         await link.click();
@@ -108,6 +108,20 @@ async function get_data(req, res) {
     console.log('New Page URL:', page.url());
 
     await delay(500);
+
+    if( PERIODO == 'anos-finais'){
+        /*
+        * Anos Finais
+        */
+        console.log('CLICK ANO FINAIS **');
+        await page.$eval("#cssmenu_emec > ul > li > ul > li:nth-child(2) > a", item => item.click());
+        
+        //await page.waitForNavigation();
+        await delay(500);
+        console.log('New Page URL:', page.url());
+    }else{
+        console.log('CLICK ANOS INICIAIS **');
+    }
 
     /* RASPAR DADOS */
     const data = await page.evaluate(() => Array.from(document.querySelectorAll('.PTChildPivotTable table tr td')).map(el => el.innerText)
@@ -122,27 +136,43 @@ async function get_data(req, res) {
     //await page.screenshot({ path: 'output.png' });
     await browser.close();
 
-    //return JSON.stringify(data);
+    //console.log(data);
+    //return data;
 
-    let info = {
-        'QUADRO DE REFERÊNCIA' :{
-            'Cidade': data[0],
-            'Estado': data[1],
-            'Rede Municipal (RM)': {
-                'Escolas': data[9],
-                'Matrículas': data[10]
-            },
-            'Rede Estadual situada no seu município (REM)': {
-                'Escolas': data[12],
-                'Matrículas': data[13]
+    var has_rm = ( data[8] === 'Rede Municipal (RM)') ?  true : false;
+
+    if( has_rm ){
+        var info = {
+            'QUADRO DE REFERÊNCIA' :{
+                'Cidade': data[0],
+                'Estado': data[1],
+                'Rede Municipal (RM)': {
+                    'Escolas': data[9],
+                    'Matrículas': data[10]
+                },
+                'Rede Estadual situada no seu município (REM)': {
+                    'Escolas': data[12],
+                    'Matrículas': data[13]
+                }
             }
-        }
-    }; 
+        };
+    }else{
+        var info = {
+            'QUADRO DE REFERÊNCIA' :{
+                'Cidade': data[0],
+                'Estado': data[1],
+                'Rede Estadual situada no seu município (REM)': {
+                    'Escolas': data[9],
+                    'Matrículas': data[10]
+                }
+            }
+        };        
+    } 
 
     for(i = 0; i <= data.length; i++){
         
         let arr = {}
-        let position = 24;
+        let position = (has_rm) ? 24 : 18;
 
         const SECTION = [
             'Matrículas',
@@ -157,27 +187,44 @@ async function get_data(req, res) {
 
         for( let sect = 0; sect <= SECTION.length; sect ++){            
             if( data[i] == SECTION[sect] && SECTION[sect] !== undefined ){
+                let year_start = (PERIODO == 'anos-finais') ? 6 : 1;
+                let year_end = (PERIODO == 'anos-finais') ? 9 : 5;
                 
-                for(year = 1; year <=5; year++){
+                for(year = year_start; year <=year_end; year++){
                     
                     let year_line = `${year}_ANO`;
 
-                    arr[year_line] = { 
-                        '2017':{
-                            'RM': data[i+position],
-                            'REM': data[i+position+1]
-                        },
-                        '2018':{
-                            'RM': data[i+position+2],
-                            'REM': data[i+position+3]
-                        },
-                        '2019':{
-                            'RM': data[i+position+4],
-                            'REM': data[i+position+5]
-                        } 
-                    };
+                    if( has_rm ){
+                        arr[year_line] = { 
+                            '2017':{
+                                'RM': data[i+position],
+                                'REM': data[i+position+1]
+                            },
+                            '2018':{
+                                'RM': data[i+position+2],
+                                'REM': data[i+position+3]
+                            },
+                            '2019':{
+                                'RM': data[i+position+4],
+                                'REM': data[i+position+5]
+                            } 
+                        };
+                        position += 8;
+                    }else{
+                        arr[year_line] = { 
+                            '2017':{
+                                'REM': data[i+position]                                
+                            },
+                            '2018':{
+                                'REM': data[i+position+1]
+                            },
+                            '2019':{
+                                'REM': data[i+position+2]
+                            } 
+                        };                        
+                        position += 5;
+                    }
 
-                    position += 8;
                     
                 }
                 info[ SECTION[sect] ] = arr;
