@@ -92,7 +92,7 @@ async function get_data(req, res, PORT) {
     await page.evaluate(() => { document.querySelectorAll('.promptDropDownButton')[1].click(); }
     );
 
-    await delay(600);
+    await delay(700);
     console.log(`CLICK ${CITY}`);
     await page.$eval(`div.promptMenuOption[title="${CITY}"]`, _el => _el.click());
 
@@ -143,94 +143,109 @@ async function get_data(req, res, PORT) {
 
     if( has_rm ){
         var info = {
-            'QUADRO DE REFERÊNCIA' :{
+           // 'QUADRODEREFERÊNCIA' :[{
                 'Cidade': data[0],
                 'Estado': data[1],
-                'Rede Municipal (RM)': {
+                'REDES':[{
+                    'Rede': data[8], //'Rede Municipal (RM)'
                     'Escolas': data[9],
                     'Matrículas': data[10]
                 },
-                'Rede Estadual situada no seu município (REM)': {
+                {
+                    'Rede': data[11], //'Rede Estadual situada no seu município (REM)'
                     'Escolas': data[12],
                     'Matrículas': data[13]
-                }
-            }
+                }],
+                'INDICADORES':[]
+            //}]
         };
     }else{
         var info = {
-            'QUADRO DE REFERÊNCIA' :{
+            //'QUADRODEREFERÊNCIA' :[{
                 'Cidade': data[0],
                 'Estado': data[1],
-                'Rede Estadual situada no seu município (REM)': {
+                'REDES':[{
+                    'Rede':data[8], //'Rede Estadual situada no seu município (REM)'
                     'Escolas': data[9],
                     'Matrículas': data[10]
-                }
-            }
+                }],
+                'INDICADORES':[ ]
+            //}]
         };        
-    } 
+    }
 
-    for(i = 0; i <= data.length; i++){
-        
-        let arr = {}
-        let position = (has_rm) ? 24 : 18;
+    var posini = (has_rm) ? 16 : 13;
 
-        const SECTION = [
-            'Matrículas',
-            'Total de Estudantes Incluídos',
-            'Taxa de Aprovação (%)',
-            'Taxa de Abandono (%)',
-            'Média Estudantes por Turma',
-            'Matrículas em Tempo Integral',
-            'Taxa de Reprovação (%)',
-            'Taxa de Distorção Idade-série (%)'
-        ];
+    const SECTION = [
+        'Matrículas',
+        'Total de Estudantes Incluídos',
+        'Taxa de Aprovação (%)',
+        'Taxa de Abandono (%)',
+        'Média Estudantes por Turma',
+        'Matrículas em Tempo Integral',
+        'Taxa de Reprovação (%)',
+        'Taxa de Distorção Idade-série (%)'
+    ];
+
+    for(i = posini; i <= data.length; i++){
+
+        var position = (has_rm) ? 24 : 18;
 
         for( let sect = 0; sect <= SECTION.length; sect ++){            
             if( data[i] == SECTION[sect] && SECTION[sect] !== undefined ){
                 let year_start = (PERIODO == 'anos-finais') ? 6 : 1;
                 let year_end = (PERIODO == 'anos-finais') ? 9 : 5;
                 
+                var ind = {
+                    "Indicador":data[i],
+                    "ANOSESCOLARES":[]
+                }
+
+                let len = info.INDICADORES.push(ind);
+
                 for(year = year_start; year <=year_end; year++){
                     
-                    let year_line = `${year}_ANO`;
-
                     if( has_rm ){
-                        arr[year_line] = { 
-                            '2017':{
+                        var indanos = {
+                            'AnoEscolar': year,
+                            'ANOS':[{
+                                'ANO':data[i+3],
                                 'RM': data[i+position],
                                 'REM': data[i+position+1]
                             },
-                            '2018':{
+                            {
+                                'ANO':data[i+4],
                                 'RM': data[i+position+2],
                                 'REM': data[i+position+3]
                             },
-                            '2019':{
+                            {
+                                'ANO':data[i+5],
                                 'RM': data[i+position+4],
                                 'REM': data[i+position+5]
-                            } 
-                        };
-                        position += 8;
+                            }]}; 
+                        position += 8;          
                     }else{
-                        arr[year_line] = { 
-                            '2017':{
-                                'REM': data[i+position]                                
+                        var indanos = {
+                            'AnoEscolar': year,
+                            'ANOS':[{
+                            'ANO':data[i+3],
+                            'REM': data[i+position]                                
                             },
-                            '2018':{
-                                'REM': data[i+position+1]
+                            {
+                            'ANO':data[i+4],
+                            'REM': data[i+position+1]
                             },
-                            '2019':{
-                                'REM': data[i+position+2]
+                            {
+                            'ANO':data[i+5],
+                            'REM': data[i+position+2]
                             } 
-                        };                        
+                        ]};                        
                         position += 5;
                     }
-
-                    
+                    info.INDICADORES[len-1].ANOSESCOLARES.push(indanos);
                 }
-                info[ SECTION[sect] ] = arr;
             }
         }            
-    }        
-
+    }
     return info;
 }
